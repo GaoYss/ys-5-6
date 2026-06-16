@@ -211,6 +211,11 @@ select {
   background: #a94f2c;
 }
 
+.primary-button:disabled {
+  background: #d9cbbb;
+  cursor: not-allowed;
+}
+
 .list-table,
 .data-table {
   display: grid;

@@ -1,11 +1,11 @@
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, watch } from 'vue'
 import MemberSelect from '../components/MemberSelect.vue'
 import StatusBanner from '../components/StatusBanner.vue'
 import { useLoyaltyData } from '../stores/useLoyaltyData'
 
-const { state, refreshAll, createOrder, refundOrder } = useLoyaltyData()
-const form = reactive({ member_id: '', original_amount: 50, rule_id: '', note: '' })
+const { state, refreshAll, createOrder, refundOrder, loadOrders } = useLoyaltyData()
+const form = reactive({ member_id: '', original_amount: '', rule_id: '', note: '' })
 
 const selectedMember = computed(() => {
   if (!form.member_id) return null
@@ -17,10 +17,12 @@ const preview = computed(() => {
   const member = selectedMember.value
   const rule = state.rules.find(r => r.id === Number(form.rule_id))
   if (!rule) return null
+  const amount = Number(form.original_amount)
+  if (!amount || amount <= 0) return null
 
   const discountPercent = member.discount_percent
-  const discountAmount = Math.round(form.original_amount * discountPercent / 100 * 100) / 100
-  const finalAmount = Math.round((form.original_amount - discountAmount) * 100) / 100
+  const discountAmount = Math.round(amount * discountPercent / 100 * 100) / 100
+  const finalAmount = Math.round((amount - discountAmount) * 100) / 100
   const pointsEarned = Math.floor(finalAmount / rule.amount_per_point * rule.multiplier)
 
   return {
@@ -31,15 +33,19 @@ const preview = computed(() => {
   }
 })
 
-const filteredOrders = computed(() => {
-  if (!form.member_id) return state.orders
-  return state.orders.filter(o => o.member_id === Number(form.member_id))
-})
+watch(() => form.member_id, async (newId) => {
+  if (newId) {
+    await loadOrders(Number(newId))
+  }
+}, { immediate: false })
 
 onMounted(async () => {
   await refreshAll()
   if (state.members[0]) form.member_id = state.members[0].id
   if (state.rules[0]) form.rule_id = state.rules[0].id
+  if (form.member_id) {
+    await loadOrders(Number(form.member_id))
+  }
 })
 
 async function submitOrder() {
@@ -49,13 +55,19 @@ async function submitOrder() {
     rule_id: Number(form.rule_id),
     note: form.note || null
   })
-  form.original_amount = 0
+  form.original_amount = ''
   form.note = ''
+  if (form.member_id) {
+    await loadOrders(Number(form.member_id))
+  }
 }
 
 async function handleRefund(order) {
   if (!confirm(`确定要退款订单 ${order.order_no} 吗？将扣回 ${order.points_earned} 积分。`)) return
   await refundOrder(order.id, { note: '' })
+  if (form.member_id) {
+    await loadOrders(Number(form.member_id))
+  }
 }
 
 function formatStatus(status) {
@@ -86,7 +98,7 @@ function formatStatus(status) {
         </label>
         <label>
           消费金额（元）
-          <input v-model.number="form.original_amount" min="0.01" step="0.01" type="number" />
+          <input v-model="form.original_amount" min="0.01" step="0.01" type="number" placeholder="请输入消费金额" />
         </label>
         <label>
           积分规则
@@ -120,12 +132,12 @@ function formatStatus(status) {
           </div>
         </div>
 
-        <button class="primary-button" type="submit">确认下单</button>
+        <button class="primary-button" type="submit" :disabled="!form.member_id || !form.original_amount || Number(form.original_amount) <= 0">确认下单</button>
       </form>
 
       <section class="panel wide-panel">
         <h3>订单列表</h3>
-        <div v-if="filteredOrders.length > 0" class="order-table">
+        <div v-if="state.orders.length > 0" class="order-table">
           <div class="order-head">
             <span>订单号</span>
             <span>会员</span>
@@ -135,7 +147,7 @@ function formatStatus(status) {
             <span>状态</span>
             <span>操作</span>
           </div>
-          <div v-for="order in filteredOrders" :key="order.id" class="order-row">
+          <div v-for="order in state.orders" :key="order.id" class="order-row">
             <span class="order-no">{{ order.order_no }}</span>
             <span>{{ order.member_name }}</span>
             <span class="original">¥{{ order.original_amount.toFixed(2) }}</span>
