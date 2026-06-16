@@ -80,10 +80,40 @@ class Voucher(BaseModel):
     expires_at: str
 
 
+class Order(BaseModel):
+    id: int
+    member_id: int
+    member_name: str | None = None
+    order_no: str
+    original_amount: float
+    discount_amount: float
+    final_amount: float
+    discount_percent: int
+    points_earned: int
+    status: str
+    rule_id: int | None = None
+    rule_name: str | None = None
+    note: str | None = None
+    created_at: str
+    refunded_at: str | None = None
+
+
+class CreateOrderRequest(BaseModel):
+    member_id: int
+    original_amount: float = Field(gt=0)
+    rule_id: int = 1
+    note: str | None = None
+
+
+class RefundOrderRequest(BaseModel):
+    note: str | None = None
+
+
 class OperationResult(BaseModel):
     member: Member
     transaction: Transaction | None = None
     voucher: Voucher | None = None
+    order: Order | None = None
     message: str
 
 
@@ -92,3 +122,5 @@ class Dashboard(BaseModel):
     total_points: int
     gifts_count: int
     active_vouchers: int
+    orders_count: int
+    total_sales: float

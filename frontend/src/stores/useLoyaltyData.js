@@ -11,7 +11,8 @@ const state = reactive({
   gifts: [],
   tiers: [],
   vouchers: [],
-  transactions: []
+  transactions: [],
+  orders: []
 })
 
 async function run(action, successMessage = '') {
@@ -33,16 +34,17 @@ async function refreshAll() {
   state.loading = true
   state.error = ''
   try {
-    const [dashboard, members, rules, gifts, tiers, vouchers, transactions] = await Promise.all([
+    const [dashboard, members, rules, gifts, tiers, vouchers, transactions, orders] = await Promise.all([
       loyaltyApi.dashboard(),
       loyaltyApi.members(),
       loyaltyApi.rules(),
       loyaltyApi.gifts(),
       loyaltyApi.tiers(),
       loyaltyApi.vouchers(),
-      loyaltyApi.transactions()
+      loyaltyApi.transactions(),
+      loyaltyApi.orders()
     ])
-    Object.assign(state, { dashboard, members, rules, gifts, tiers, vouchers, transactions })
+    Object.assign(state, { dashboard, members, rules, gifts, tiers, vouchers, transactions, orders })
   } catch (error) {
     state.error = error.message
   } finally {
@@ -70,6 +72,19 @@ export function useLoyaltyData() {
       const vouchers = await run(() => loyaltyApi.issueBirthdayVouchers(), '生日礼券发放完成')
       await refreshAll()
       return vouchers
+    },
+    async createOrder(payload) {
+      await run(() => loyaltyApi.createOrder(payload), '订单创建成功')
+      await refreshAll()
+    },
+    async refundOrder(orderId, payload) {
+      await run(() => loyaltyApi.refundOrder(orderId, payload), '订单退款成功')
+      await refreshAll()
+    },
+    async loadOrders(memberId) {
+      const orders = await run(() => loyaltyApi.orders(memberId))
+      state.orders = orders
+      return orders
     }
   }
 }

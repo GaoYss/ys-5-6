@@ -65,6 +65,24 @@ CREATE TABLE IF NOT EXISTS vouchers (
     expires_at TEXT NOT NULL,
     FOREIGN KEY (member_id) REFERENCES members(id)
 );
+
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    order_no TEXT NOT NULL UNIQUE,
+    original_amount REAL NOT NULL,
+    discount_amount REAL NOT NULL DEFAULT 0,
+    final_amount REAL NOT NULL,
+    discount_percent INTEGER NOT NULL DEFAULT 0,
+    points_earned INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'completed',
+    rule_id INTEGER,
+    note TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    refunded_at TEXT,
+    FOREIGN KEY (member_id) REFERENCES members(id),
+    FOREIGN KEY (rule_id) REFERENCES point_rules(id)
+);
 """
 
 
@@ -94,6 +112,14 @@ VALUES
     (1, '林晓茶', '13800000001', '1998-06-14', 860, 3),
     (2, '周芋圆', '13800000002', '1996-11-22', 260, 1),
     (3, '陈波波', '13800000003', '1994-02-08', 1680, 4);
+
+INSERT OR IGNORE INTO orders (id, member_id, order_no, original_amount, discount_amount, final_amount, discount_percent, points_earned, status, rule_id, note, created_at)
+VALUES
+    (1, 1, 'ORD20240101001', 128.00, 12.80, 115.20, 10, 11, 'completed', 1, '经典奶茶x2 + 珍珠加料', '2024-01-15 14:30:00'),
+    (2, 2, 'ORD20240101002', 45.00, 0.00, 45.00, 0, 4, 'completed', 1, '中杯乌龙奶茶', '2024-01-16 10:15:00'),
+    (3, 3, 'ORD20240101003', 256.00, 38.40, 217.60, 15, 21, 'completed', 1, '周末家庭套餐', '2024-01-17 16:45:00'),
+    (4, 1, 'ORD20240101004', 68.00, 6.80, 61.20, 10, 6, 'completed', 2, '周三特惠：抹茶拿铁', '2024-01-17 12:00:00'),
+    (5, 2, 'ORD20240101005', 32.00, 0.00, 32.00, 0, 9, 'completed', 3, '新品芋泥波波茶', '2024-01-18 11:30:00');
 """
 
 

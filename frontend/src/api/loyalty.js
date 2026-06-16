@@ -11,5 +11,8 @@ export const loyaltyApi = {
   redeemGift: (payload) => http.post('/gifts/redeem', payload),
   tiers: () => http.get('/tiers'),
   vouchers: () => http.get('/vouchers'),
-  issueBirthdayVouchers: () => http.post('/vouchers/birthday/issue', {})
+  issueBirthdayVouchers: () => http.post('/vouchers/birthday/issue', {}),
+  orders: (memberId) => http.get('/orders', { params: { member_id: memberId } }),
+  createOrder: (payload) => http.post('/orders', payload),
+  refundOrder: (orderId, payload) => http.post(`/orders/${orderId}/refund`, payload || {})
 }

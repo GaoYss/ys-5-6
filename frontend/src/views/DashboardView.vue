@@ -38,6 +38,8 @@ async function submitEarn() {
     <div class="metrics-grid">
       <MetricCard label="会员数" :value="state.dashboard?.members_count || 0" hint="已登记会员" />
       <MetricCard label="积分池" :value="state.dashboard?.total_points || 0" hint="当前可用积分" />
+      <MetricCard label="订单数" :value="state.dashboard?.orders_count || 0" hint="已完成订单" />
+      <MetricCard label="销售额" :value="'¥' + (state.dashboard?.total_sales || 0).toFixed(2)" hint="累计营业额" />
       <MetricCard label="礼品" :value="state.dashboard?.gifts_count || 0" hint="可兑换项目" />
       <MetricCard label="礼券" :value="state.dashboard?.active_vouchers || 0" hint="未使用生日券" />
     </div>

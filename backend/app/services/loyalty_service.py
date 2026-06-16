@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 from fastapi import HTTPException, status
 
@@ -127,9 +128,107 @@ class LoyaltyService:
         members = self.repo.list_members()
         gifts = self.repo.list_gifts()
         vouchers = self.repo.list_vouchers()
+        orders = self.repo.list_orders()
+        completed_orders = [o for o in orders if o["status"] == "completed"]
         return {
             "members_count": len(members),
             "total_points": sum(member["points"] for member in members),
             "gifts_count": len([gift for gift in gifts if gift["active"]]),
             "active_vouchers": len([voucher for voucher in vouchers if voucher["status"] == "unused"]),
+            "orders_count": len(completed_orders),
+            "total_sales": round(sum(o["final_amount"] for o in completed_orders), 2),
+        }
+
+    def _generate_order_no(self) -> str:
+        now = datetime.now()
+        prefix = now.strftime("%Y%m%d%H%M%S")
+        suffix = uuid4().hex[:6].upper()
+        return f"ORD{prefix}{suffix}"
+
+    def list_orders(self, member_id: int | None = None) -> list[dict]:
+        return self.repo.list_orders(member_id)
+
+    def get_order(self, order_id: int) -> dict:
+        order = self.repo.get_order(order_id)
+        if order is None:
+            raise HTTPException(status_code=404, detail="订单不存在")
+        return order
+
+    def create_order(self, member_id: int, original_amount: float, rule_id: int, note: str | None = None) -> dict:
+        member = self.get_member_or_404(member_id)
+        rule = self.repo.get_point_rule(rule_id)
+        if rule is None or not rule["active"]:
+            raise HTTPException(status_code=404, detail="积分规则不存在或未启用")
+
+        discount_percent = member["discount_percent"]
+        discount_amount = round(original_amount * discount_percent / 100, 2)
+        final_amount = round(original_amount - discount_amount, 2)
+
+        points_earned = int(final_amount / rule["amount_per_point"] * rule["multiplier"])
+
+        order_no = self._generate_order_no()
+        order = self.repo.create_order(
+            member_id=member_id,
+            order_no=order_no,
+            original_amount=original_amount,
+            discount_amount=discount_amount,
+            final_amount=final_amount,
+            discount_percent=discount_percent,
+            points_earned=points_earned,
+            rule_id=rule_id,
+            note=note,
+        )
+
+        if points_earned > 0:
+            new_points = member["points"] + points_earned
+            self.repo.update_member_points(member_id, new_points)
+            self.repo.add_transaction(
+                member_id,
+                "earn",
+                points_earned,
+                f"消费订单 {order_no}：{rule['name']}",
+            )
+            refreshed = self._refresh_member_tier({**member, "points": new_points})
+        else:
+            refreshed = self._normalize_member(member)
+
+        return {
+            "member": refreshed,
+            "order": order,
+            "transaction": None,
+            "message": f"订单创建成功，实付 {final_amount:.2f} 元，获得 {points_earned} 积分",
+        }
+
+    def refund_order(self, order_id: int, note: str | None = None) -> dict:
+        order = self.get_order(order_id)
+        if order["status"] != "completed":
+            raise HTTPException(status_code=400, detail="订单状态不允许退款")
+
+        member = self.get_member_or_404(order["member_id"])
+        points_to_deduct = order["points_earned"]
+
+        if points_to_deduct > 0 and member["points"] < points_to_deduct:
+            raise HTTPException(status_code=400, detail="会员积分不足，无法扣回")
+
+        refunded_at = datetime.now().isoformat(timespec="seconds")
+        refunded_order = self.repo.refund_order(order_id, refunded_at, note)
+
+        if points_to_deduct > 0:
+            new_points = member["points"] - points_to_deduct
+            self.repo.update_member_points(order["member_id"], new_points)
+            self.repo.add_transaction(
+                order["member_id"],
+                "refund",
+                -points_to_deduct,
+                f"订单退款 {order['order_no']}",
+            )
+            refreshed = self._refresh_member_tier({**member, "points": new_points})
+        else:
+            refreshed = self._normalize_member(member)
+
+        return {
+            "member": refreshed,
+            "order": refunded_order,
+            "transaction": None,
+            "message": f"订单退款成功，已扣回 {points_to_deduct} 积分",
         }

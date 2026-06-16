@@ -167,3 +167,85 @@ class LoyaltyRepository:
                 """
             ).fetchall()
             return rows_to_dicts(rows)
+
+    def list_orders(self, member_id: int | None = None) -> list[dict]:
+        with get_connection() as conn:
+            if member_id is None:
+                rows = conn.execute(
+                    """
+                    SELECT o.*, m.name AS member_name, r.name AS rule_name
+                    FROM orders o
+                    JOIN members m ON m.id = o.member_id
+                    LEFT JOIN point_rules r ON r.id = o.rule_id
+                    ORDER BY o.id DESC
+                    LIMIT 50
+                    """
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT o.*, m.name AS member_name, r.name AS rule_name
+                    FROM orders o
+                    JOIN members m ON m.id = o.member_id
+                    LEFT JOIN point_rules r ON r.id = o.rule_id
+                    WHERE o.member_id = ?
+                    ORDER BY o.id DESC
+                    LIMIT 50
+                    """,
+                    (member_id,),
+                ).fetchall()
+            return rows_to_dicts(rows)
+
+    def get_order(self, order_id: int) -> dict | None:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT o.*, m.name AS member_name, r.name AS rule_name
+                FROM orders o
+                JOIN members m ON m.id = o.member_id
+                LEFT JOIN point_rules r ON r.id = o.rule_id
+                WHERE o.id = ?
+                """,
+                (order_id,),
+            ).fetchone()
+            return row_to_dict(row)
+
+    def create_order(
+        self,
+        member_id: int,
+        order_no: str,
+        original_amount: float,
+        discount_amount: float,
+        final_amount: float,
+        discount_percent: int,
+        points_earned: int,
+        rule_id: int,
+        note: str | None = None,
+    ) -> dict:
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO orders (member_id, order_no, original_amount, discount_amount, final_amount,
+                                    discount_percent, points_earned, rule_id, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (member_id, order_no, original_amount, discount_amount, final_amount,
+                 discount_percent, points_earned, rule_id, note),
+            )
+            order_id = cursor.lastrowid
+        order = self.get_order(order_id)
+        if order is None:
+            raise RuntimeError("order creation failed")
+        return order
+
+    def refund_order(self, order_id: int, refunded_at: str, note: str | None = None) -> dict | None:
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE orders
+                SET status = 'refunded', refunded_at = ?, note = COALESCE(?, note)
+                WHERE id = ? AND status = 'completed'
+                """,
+                (refunded_at, note, order_id),
+            )
+        return self.get_order(order_id)
