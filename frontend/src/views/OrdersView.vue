@@ -31,6 +31,11 @@ const preview = computed(() => {
   }
 })
 
+const filteredOrders = computed(() => {
+  if (!form.member_id) return state.orders
+  return state.orders.filter(o => o.member_id === Number(form.member_id))
+})
+
 onMounted(async () => {
   await refreshAll()
   if (state.members[0]) form.member_id = state.members[0].id
@@ -44,6 +49,7 @@ async function submitOrder() {
     rule_id: Number(form.rule_id),
     note: form.note || null
   })
+  form.original_amount = 0
   form.note = ''
 }
 
@@ -119,7 +125,7 @@ function formatStatus(status) {
 
       <section class="panel wide-panel">
         <h3>订单列表</h3>
-        <div class="order-table">
+        <div v-if="filteredOrders.length > 0" class="order-table">
           <div class="order-head">
             <span>订单号</span>
             <span>会员</span>
@@ -129,7 +135,7 @@ function formatStatus(status) {
             <span>状态</span>
             <span>操作</span>
           </div>
-          <div v-for="order in state.orders" :key="order.id" class="order-row">
+          <div v-for="order in filteredOrders" :key="order.id" class="order-row">
             <span class="order-no">{{ order.order_no }}</span>
             <span>{{ order.member_name }}</span>
             <span class="original">¥{{ order.original_amount.toFixed(2) }}</span>
@@ -149,6 +155,11 @@ function formatStatus(status) {
               <span v-else class="muted">-</span>
             </span>
           </div>
+        </div>
+        <div v-else class="empty-state">
+          <p class="empty-icon">📋</p>
+          <p class="empty-title">暂无订单记录</p>
+          <p class="empty-desc">该会员还没有消费订单，录入一笔试试吧</p>
         </div>
       </section>
     </div>
