@@ -15,6 +15,14 @@ const state = reactive({
   orders: []
 })
 
+function patchMember(updatedMember) {
+  if (!updatedMember || !updatedMember.id) return
+  const idx = state.members.findIndex(m => m.id === updatedMember.id)
+  if (idx !== -1) {
+    state.members[idx] = updatedMember
+  }
+}
+
 async function run(action, successMessage = '') {
   state.loading = true
   state.error = ''
@@ -74,16 +82,24 @@ export function useLoyaltyData() {
     },
     async createOrder(payload) {
       const result = await run(() => loyaltyApi.createOrder(payload), '订单创建成功')
+      if (result?.member) patchMember(result.member)
       return result
     },
     async refundOrder(orderId, payload) {
       const result = await run(() => loyaltyApi.refundOrder(orderId, payload), '订单退款成功')
+      if (result?.member) patchMember(result.member)
       return result
     },
     async loadOrders(memberId) {
-      const orders = await run(() => loyaltyApi.orders(memberId))
-      state.orders = orders
-      return orders
+      state.orders = []
+      try {
+        const orders = await run(() => loyaltyApi.orders(memberId))
+        state.orders = orders
+        return orders
+      } catch {
+        state.orders = []
+        return []
+      }
     }
   }
 }
