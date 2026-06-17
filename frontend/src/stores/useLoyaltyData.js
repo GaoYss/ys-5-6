@@ -38,6 +38,17 @@ async function run(action, successMessage = '') {
   }
 }
 
+async function refreshDashboard() {
+  try {
+    const dashboard = await loyaltyApi.dashboard()
+    state.dashboard = dashboard
+    return dashboard
+  } catch (error) {
+    state.error = error.message
+    throw error
+  }
+}
+
 async function refreshAll() {
   state.loading = true
   state.error = ''
@@ -63,6 +74,7 @@ export function useLoyaltyData() {
   return {
     state,
     refreshAll,
+    refreshDashboard,
     async createMember(payload) {
       await run(() => loyaltyApi.createMember(payload), '会员已创建')
       await refreshAll()
@@ -83,11 +95,13 @@ export function useLoyaltyData() {
     async createOrder(payload) {
       const result = await run(() => loyaltyApi.createOrder(payload), '订单创建成功')
       if (result?.member) patchMember(result.member)
+      await refreshDashboard()
       return result
     },
     async refundOrder(orderId, payload) {
       const result = await run(() => loyaltyApi.refundOrder(orderId, payload), '订单退款成功')
       if (result?.member) patchMember(result.member)
+      await refreshDashboard()
       return result
     },
     async loadOrders(memberId) {
